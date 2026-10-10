@@ -275,19 +275,38 @@ function setLive(isLive) {
 
 function connectStream() {
   const source = new EventSource("/api/stream");
-  source.addEventListener("open", () => setLive(true));
-  source.addEventListener("summary", (event) => {
+
+  source.addEventListener("open", () => {
     setLive(true);
-    try {
-      renderSummary(JSON.parse(event.data));
-    } catch (error) {
-      console.error("Summary konnte nicht gelesen werden", error);
+    // The stream is back - the polling fallback is no longer needed.
+    if (state.pollTimer) {
+      clearInterval(state.pollTimer);
+      state.pollTimer = null;
     }
   });
+
+  source.addEventListener("summary", (event) => {
+    setLive(true);
+    let payload = null;
+    try {
+      payload = JSON.parse(event.data);
+    } catch (error) {
+      console.error("Summary konnte nicht gelesen werden", error);
+      return;
+    }
+    if (payload.history && payload.history.days === state.days) {
+      renderSummary(payload);
+    } else {
+      // The broadcast uses the configured default window. Reload our own range
+      // so the selected period is not silently overwritten.
+      void loadSummary(state.days).catch(() => {});
+    }
+  });
+
   source.addEventListener("error", () => {
+    // EventSource reconnects on its own - only flag it and add a polling
+    // fallback so the dashboard stays usable if the stream stays down.
     setLive(false);
-    source.close();
-    // Fallback: keep polling so the dashboard stays usable.
     if (!state.pollTimer) {
       state.pollTimer = setInterval(() => void loadSummary(state.days).catch(() => {}), 60000);
     }

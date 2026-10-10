@@ -98,6 +98,16 @@ export function dailySeries(snapshots: readonly Snapshot[], days: number, now: n
     points.push({ date, spend: round(spend, 6), cumulative: 0 });
   }
 
+  // The API reports the current UTC day's consumption directly. Prefer it for
+  // "today" so a fresh installation shows a real value even before the local
+  // history has a baseline to diff against.
+  const todayKey = utcDayKey(now);
+  const todaySnapshot = [...sorted].reverse().find((snapshot) => utcDayKey(snapshot.ts) === todayKey);
+  if (todaySnapshot && todaySnapshot.usageDaily > 0) {
+    const todayPoint = points.find((point) => point.date === todayKey);
+    if (todayPoint) todayPoint.spend = round(todaySnapshot.usageDaily, 6);
+  }
+
   let cumulative = 0;
   for (const point of points) {
     cumulative += point.spend;

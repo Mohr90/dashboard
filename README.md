@@ -1,81 +1,106 @@
-# OpenRouter Stats
+# open-router-stats
 
-Live-Dashboard und MCP-Server für dein OpenRouter-Konto: **Wie viel Guthaben ist noch übrig (€ / $), wie viel verbrauche ich, wie lange reicht es noch – und welches Modell ist für meinen Workload am günstigsten?**
+Live-Dashboard fuer dein **OpenRouter-Guthaben**: wie viel Geld noch uebrig ist,
+wie schnell du verbrauchst und wie lange es noch reicht - plus ein Preisvergleich
+ueber alle ~460 Modelle. Zusaetzlich ein **MCP-Server**, damit Cline/Claude den
+Kontostand direkt im Chat abfragen kann.
 
-![Node](https://img.shields.io/badge/node-%3E%3D22.5-3ddc97)
-![License](https://img.shields.io/badge/license-MIT-4f8cff)
+## Features
 
----
+**Guthaben & Verbrauch**
+- Restguthaben in **EUR** und **USD** (USD->EUR-Kurs live von der EZB via Frankfurter)
+- Key-Ausgabenlimit inkl. Restbetrag und Reset-Zyklus
+- Verbrauch heute / Woche / Monat / gesamt
+- **Burn-Rate** (durchschnittlich EUR/Tag) und Prognose "reicht noch X Tage" inkl. Datum
+- Tagesverlauf-Chart (14 / 30 / 90 Tage): Balken = Verbrauch pro Tag, Linie = kumuliert
 
-## Was es kann
+**Live**
+- Server-Sent-Events: der Browser aktualisiert sich bei jeder Messung automatisch
+- Button "Jetzt aktualisieren" fuer eine Messung auf Knopfdruck
+- Fallback auf Polling, falls SSE nicht verfuegbar ist
 
-| Feature | Beschreibung |
-|---|---|
-| **Restguthaben** | Gekaufte minus verbrauchte Credits, in USD **und EUR** (Live-ECB-Kurs) |
-| **Verbrauch** | Heute / diese Woche / dieser Monat / insgesamt, plus Key-Limit |
-| **Verlauf** | Tagesverbrauch als Balkendiagramm + kumulierte Linie |
-| **Burn-Rate & Prognose** | Ø Verbrauch/Tag und „reicht noch X Tage" inkl. Datum |
-| **Live-Updates** | Das Dashboard aktualisiert sich selbst per Server-Sent-Events |
-| **Modellvergleich** | Kostenrechner: Tokens + Requests eingeben → Ranking aller 450+ Modelle |
-| **MCP-Server** | Du kannst das Kontingent direkt im Chat abfragen (Cline, Claude, …) |
+**Modellvergleich**
+- Kostenrechner: Input-Tokens, Output-Tokens und Request-Anzahl eingeben
+- Ranking der guenstigsten Modelle fuer genau diesen Workload, in EUR und USD
 
----
+**MCP-Server** (`src/mcp.ts`) mit 6 Tools: `openrouter_balance`, `openrouter_usage`,
+`openrouter_burn_rate`, `openrouter_history`, `openrouter_model_prices`,
+`openrouter_estimate_cost`.
 
-## Schnellstart
+## Wie der Verlauf entsteht
+
+OpenRouter liefert ueber `GET /api/v1/credits` nur zwei Zahlen: gekaufte und
+verbrauchte Credits insgesamt. Die Analytics-API (`/api/v1/analytics/*`) mit
+Aufschluesselung nach Modell und Tag ist **Management-Keys** vorbehalten
+(`403: Only management keys can access analytics`).
+
+Deshalb schreibt das Dashboard in einem festen Intervall eigene Messpunkte in
+eine lokale SQLite-Datei (`data/stats.db`) und rekonstruiert daraus den
+Tagesverbrauch. Solange die Historie noch duenn ist, wird die Burn-Rate aus den
+von der API gelieferten Zeitraeumen (`usage_weekly`, `usage_monthly`) abgeleitet;
+die Quelle wird im Dashboard angezeigt (`history`, `api-week`, ...).
+
+> Der Verlauf waechst ab dem ersten Start. Nach ein paar Tagen wird `history`
+> zur bevorzugten Quelle und die Kurve genauer.
+
+## Voraussetzungen
+
+- Node.js **>= 22.5** (getestet mit v24) - nutzt `node:sqlite` und `fetch`
+- Ein **OpenRouter API-Key** (ein Inferenz-Key genuegt)
+- Optional: **Management-Key** unter https://openrouter.ai/settings/management-keys
+
+## Installation
 
 ```bash
-cd ~/Dokumente/open-router-stats
-npm install                       # einmalig
-
-cp .env.example .env              # Key eintragen (siehe unten)
-$EDITOR .env
-
-npm start                         # startet das Dashboard
-# -> http://127.0.0.1:8787
+cd /home/steffen/Dokumente/open-router-stats
+npm install
+cp .env.example .env      # danach OPENROUTER_API_KEY eintragen
+npm start
 ```
 
-> Voraussetzung: **Node.js ≥ 22.5** (getestet mit Node 24). Es wird kein Build-Schritt
-> und keine Datenbank-Installation benötigt – SQLite ist in Node eingebaut.
-
-### API-Key eintragen
-
-In der `.env`:
-
-```ini
-OPENROUTER_API_KEY=sk-or-v1-...           # Pflicht
-OPENROUTER_MANAGEMENT_KEY=                # optional, siehe unten
-```
-
-* Ein **normaler Inferenz-Key** reicht für Guthaben (`/credits`), Limits und Verbrauch (`/key`).
-* Ein **[Management-Key](https://openrouter.ai/settings/management-keys)** ist optional und
-  schaltet zusätzlich die OpenRouter-Analytics-API frei. Ohne ihn schreibt dieses Tool den
-  Verlauf selbst mit – das ist für „wie viel habe ich heute verbraucht" völlig ausreichend.
-* Die `.env` ist per `.gitignore` ausgeschlossen und landet **nicht** im Repository.
-
----
+Danach im Browser oeffnen: **http://127.0.0.1:8787**
 
 ## Befehle
 
-```bash
-npm start              # Dashboard + Collector (Standard-Port 8787)
-npm run dev            # wie oben, aber mit Auto-Reload bei Codeänderungen
-npm run summary        # Textbericht im Terminal (eine Live-Abfrage)
-npm run snapshot       # eine Messung in die Datenbank schreiben, JSON ausgeben
-npm run models 20      # die 20 günstigsten Modelle auflisten
-npm run mcp            # MCP-Server über stdio starten
-npm test               # Unit-Tests (Aggregation, Prognose, Preisrechnung)
-npm run typecheck      # TypeScript-Prüfung ohne Build
-```
+| Befehl | Zweck |
+| --- | --- |
+| `npm start` | Dashboard starten (`serve`) |
+| `npm run dev` | Wie `start`, aber mit Auto-Reload bei Codeaenderungen |
+| `npm run snapshot` | Einmal messen, in die DB schreiben, JSON ausgeben |
+| `npm run summary` | Textbericht im Terminal |
+| `npm run models` | Die guenstigsten Modelle auflisten (`npm run models -- 30`) |
+| `npm run mcp` | MCP-Server ueber stdio starten |
+| `npm test` | Unit-Tests der Rechen- und Formatierlogik |
+| `npm run typecheck` | TypeScript-Pruefung ohne Build |
 
----
+## Konfiguration (`.env`)
 
-## Live-Anzeige im Chat (MCP)
+| Variable | Standard | Bedeutung |
+| --- | --- | --- |
+| `OPENROUTER_API_KEY` | - | Pflicht. Key fuer `/key`, `/credits`, `/models` |
+| `OPENROUTER_MANAGEMENT_KEY` | leer | Optional, schaltet die Analytics-API frei |
+| `HOST` / `PORT` | `127.0.0.1` / `8787` | Bind-Adresse des Dashboards |
+| `POLL_SECONDS` | `60` | Messintervall (Minimum 15) |
+| `HISTORY_DAYS` | `90` | Angezeigter und behaltener Verlauf |
+| `EUR_PER_USD_FALLBACK` | `0.89` | Kurs, falls die FX-API nicht erreichbar ist |
+| `FX_REFRESH_HOURS` | `12` | Wie oft der Wechselkurs neu geladen wird |
+| `DB_PATH` | `data/stats.db` | SQLite-Datei mit der Historie |
 
-Der MCP-Server liefert dieselben Zahlen wie das Dashboard, aber direkt im Chat – z. B.
-„Wie viel Guthaben habe ich noch?".
+## HTTP-API
 
-In der MCP-Konfiguration (Cline: `~/.cline/data/settings/cline_mcp_settings.json`,
-Claude Desktop: `claude_desktop_config.json`):
+| Route | Beschreibung |
+| --- | --- |
+| `GET /api/summary?days=30` | Alle Kennzahlen inkl. Verlauf |
+| `GET /api/history?days=30` | Nur die Tagesreihe |
+| `GET /api/models?q=&limit=` | Modellkatalog mit Preisen pro 1M Tokens |
+| `GET /api/compare?promptTokens=&completionTokens=&requests=` | Kostenranking |
+| `GET /api/refresh` | Sofort eine neue Messung + Summary |
+| `GET /api/stream` | SSE-Strom der Summaries |
+| `GET /api/health` | Status, Version, Uptime |
+
+## MCP in Cline/Claude einbinden
+
+In `~/.cline/data/settings/cline_mcp_settings.json` ergaenzen:
 
 ```json
 {
@@ -91,124 +116,48 @@ Claude Desktop: `claude_desktop_config.json`):
 }
 ```
 
-Der API-Key wird aus der `.env` im Projektordner gelesen – in der MCP-Konfiguration selbst
-stehen **keine** Zugangsdaten.
+Der Key wird automatisch aus der `.env` im Projektordner geladen.
 
-### Verfügbare MCP-Tools
-
-| Tool | Zweck |
-|---|---|
-| `openrouter_balance` | Restguthaben in EUR/USD, Key-Limit |
-| `openrouter_usage` | Verbrauch heute / Woche / Monat / gesamt |
-| `openrouter_burn_rate` | Ø pro Tag + Prognose der Reichweite |
-| `openrouter_history` | Tagesverbrauch aus der lokalen Historie |
-| `openrouter_model_prices` | Modellsuche mit Preisen pro 1M Tokens |
-| `openrouter_estimate_cost` | Kosten eines Workloads für ein Modell |
-
----
-
-## HTTP-API
-
-| Endpunkt | Beschreibung |
-|---|---|
-| `GET /api/health` | Status, Version, Uptime, Key-Konfiguration |
-| `GET /api/summary?days=30` | Komplette Kennzahlen + Verlauf |
-| `GET /api/history?days=30` | Nur die Tagesreihe |
-| `GET /api/models?q=&limit=` | Modellkatalog mit Preisen |
-| `GET /api/compare?promptTokens=&completionTokens=&requests=` | Kostenranking |
-| `GET /api/refresh` | Sofort eine neue Messung erzwingen |
-| `GET /api/stream` | SSE-Stream (Live-Updates) |
-
-Der Server lauscht standardmäßig nur auf `127.0.0.1` und hat **keine Authentifizierung**.
-Er gibt Kontodaten preis – also nicht ohne Reverse-Proxy mit Auth ins Internet stellen.
-
----
-
-## Wie der Verlauf entsteht
-
-Die OpenRouter-API liefert einem Inferenz-Key nur rollende Summen (`usage_daily`,
-`usage_weekly`, …) plus die Gesamtsumme – **keine Historie**. Deshalb schreibt der Collector
-bei jedem Poll (Standard: alle 60 s) einen Messpunkt in `data/stats.db` (SQLite, in Node
-eingebaut). Der Tagesverbrauch ergibt sich aus zwei aufeinanderfolgenden Messpunkten.
-
-Je länger das Tool läuft, desto genauer wird die Burn-Rate:
-
-1. **Lokale Historie** (ab 3 Tagen mit Verbrauch) – genaueste Quelle
-2. sonst `usage_weekly / 7`
-3. sonst `usage_monthly / Tag des Monats`
-4. sonst `usage_daily`
-
-Alle Tageswerte sind **UTC**, genau wie bei OpenRouter. Alte Messpunkte werden automatisch
-ausgedünnt (Behaltefrist = 2 × `HISTORY_DAYS`, mindestens 180 Tage).
-
----
-
-## Konfiguration (`.env`)
-
-| Variable | Standard | Bedeutung |
-|---|---|---|
-| `OPENROUTER_API_KEY` | – | Pflicht |
-| `OPENROUTER_MANAGEMENT_KEY` | leer | optional, schaltet die Analytics-API frei |
-| `HOST` / `PORT` | `127.0.0.1` / `8787` | Bind-Adresse |
-| `POLL_SECONDS` | `60` | Abfrageintervall (Minimum 15) |
-| `HISTORY_DAYS` | `90` | Angezeigter / behaltener Verlauf |
-| `EUR_PER_USD_FALLBACK` | `0.89` | Kurs, falls die FX-API nicht erreichbar ist |
-| `FX_REFRESH_HOURS` | `12` | Wechselkurs-Refresh |
-| `DB_PATH` | `data/stats.db` | SQLite-Datei |
-| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | für Tests / Proxys |
-| `FX_URL` | `https://api.frankfurter.dev/v1/latest` | EZB-Kurse (kein Key nötig) |
-
----
-
-## Automatisch starten (systemd, ohne root)
+## Dauerbetrieb (systemd)
 
 ```bash
 mkdir -p ~/.config/systemd/user
 cp systemd/open-router-stats.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now open-router-stats
-systemctl --user status open-router-stats     # Status prüfen
-journalctl --user -u open-router-stats -f     # Logs live mitlesen
+journalctl --user -u open-router-stats -f
 ```
 
-Der Dienst hält den Collector am Laufen und schreibt den Verlauf weiter, auch wenn kein
-Browser offen ist.
+## Sicherheit
 
----
+- Das Dashboard bindet standardmaessig nur an `127.0.0.1` und hat **keine
+  Authentifizierung** - nicht ohne Reverse-Proxy mit Auth nach aussen oeffnen.
+- `.env` und `data/` stehen in `.gitignore` und werden nicht eingecheckt.
 
 ## Projektstruktur
 
 ```
-src/
-  config.ts      .env, Pfade, Konstanten
-  openrouter.ts  API-Client (/key, /credits, /models, /analytics)
-  fx.ts          USD -> EUR (EZB/Frankfurter, gecacht)
-  stats.ts       reine Rechenlogik: Tagesreihe, Burn-Rate, Prognose, Preisrechnung
-  store.ts       SQLite-Persistenz (Snapshots + Meta)
-  summary.ts     baut das Summary-Objekt für API, Dashboard und MCP
-  collector.ts   Poll-Schleife, Events, Retention
-  server.ts      HTTP-Server: REST, SSE, Static
-  models.ts      Modellkatalog + Kostenvergleich
-  render.ts      Textausgabe für CLI und MCP
-  mcp.ts         MCP-Server (stdio) mit 6 Tools
-  cli.ts         Einstiegspunkt (serve / snapshot / summary / models)
-public/          Dashboard (HTML/CSS/Vanilla-JS, kein Build, keine CDN-Abhängigkeit)
-test/            Unit-Tests für die Rechenlogik
+src/config.ts       Konfiguration + .env-Laden
+src/openrouter.ts   OpenRouter-API-Client (key, credits, models, analytics)
+src/fx.ts           USD->EUR-Kurs inkl. Cache und Fallback
+src/stats.ts        Reine Rechen- und Formatierlogik (getestet)
+src/store.ts        SQLite-Historie (node:sqlite)
+src/summary.ts      Baut das Summary-Objekt fuer UI, CLI und MCP
+src/collector.ts    Polling, Persistenz, Events
+src/server.ts       HTTP-Server, REST-API, SSE, Static-Serving
+src/cli.ts          Einstiegspunkt (serve/snapshot/summary/models)
+src/mcp.ts          MCP-Server mit 6 Tools
+public/             Dashboard (Vanilla JS, eigenes SVG-Chart, keine CDN-Abhaengigkeit)
 ```
 
----
+## Roadmap
 
-## Grenzen & Hinweise
-
-* Credits sind bei OpenRouter in **USD** – die EUR-Anzeige ist eine Umrechnung zum
-  tagesaktuellen Kurs und keine Abrechnung.
-* Ohne Management-Key gibt es keine Aufschlüsselung „Verbrauch pro Modell" direkt von
-  OpenRouter. Der Modellvergleich rechnet deshalb mit den **Listenpreisen** und deinem
-  eingegebenen Workload, nicht mit deinem tatsächlichen Verbrauch.
-* `usage_daily` verwendet UTC-Tage – kurz nach Mitternacht UTC springt der Tageswert zurück.
-* `POLL_SECONDS` unter 15 wird ignoriert, um die Rate-Limits zu schonen.
+- [ ] Management-Key-Modus: `/api/v1/analytics/query` fuer echten Verbrauch pro
+      Modell und Tag (dann ohne eigene Historie)
+- [ ] Top-Modelle nach Ausgaben im Dashboard
+- [ ] Budget-Warnungen (z. B. Benachrichtigung unter 5 EUR)
+- [ ] Export der Historie als CSV
 
 ## Lizenz
 
 MIT
-
