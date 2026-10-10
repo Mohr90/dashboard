@@ -154,7 +154,15 @@ function openStream(ctx: HandlerContext, req: IncomingMessage, res: ServerRespon
 
 function createHandler(ctx: HandlerContext) {
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    // A malformed request target (e.g. "//") makes `new URL` throw, so it must be
+    // guarded - otherwise a single bad request would take the whole server down.
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    } catch {
+      sendJson(res, 400, { error: "Ungueltige Anfrage-URL" });
+      return;
+    }
     const pathname = url.pathname;
 
     try {
@@ -305,7 +313,8 @@ export function createDashboardServer(collector: Collector): DashboardServer {
   collector.on("summary", broadcast);
 
   const server = createServer((req, res) => {
-    void handle(req, res);
+    // Belt and braces: never let a rejected handler become an unhandled rejection.
+    void handle(req, res).catch((error: unknown) => handleError(error, res));
   });
 
   const host = config.host === "0.0.0.0" || config.host === "::" ? "localhost" : config.host;

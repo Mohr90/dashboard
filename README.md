@@ -5,6 +5,8 @@ wie schnell du verbrauchst und wie lange es noch reicht - plus ein Preisvergleic
 ueber alle ~460 Modelle. Zusaetzlich ein **MCP-Server**, damit Cline/Claude den
 Kontostand direkt im Chat abfragen kann.
 
+![Dashboard-Vorschau](docs/preview-dashboard.png)
+
 ## Features
 
 **Guthaben & Verbrauch**
