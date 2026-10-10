@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenRouter Stats</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="banner" class="banner" hidden></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">&#9672;</span>
+        <div>
+          <h1>OpenRouter Stats</h1>
+          <p class="muted" id="subtitle">Verbinde ...</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span class="pill" id="live-pill"><span class="dot"></span><span id="live-text">offline</span></span>
+        <button class="btn" id="refresh-btn" type="button">Jetzt aktualisieren</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab is-active" data-tab="overview" type="button">Guthaben &amp; Verbrauch</button>
+      <button class="tab" data-tab="compare" type="button">Modellvergleich</button>
+    </nav>
+
+    <main>
+      <section class="panel is-active" id="panel-overview">
+        <div class="cards">
+          <article class="card hero">
+            <p class="card-label">Restguthaben</p>
+            <p class="value" id="remaining-eur">-</p>
+            <p class="muted small" id="remaining-usd">-</p>
+            <div class="bar"><span id="balance-bar"></span></div>
+            <p class="muted small" id="balance-foot">-</p>
+          </article>
+          <article class="card">
+            <p class="card-label">Verbraucht gesamt</p>
+            <p class="value" id="used-total">-</p>
+            <p class="muted small" id="used-sub">-</p>
+          </article>
+          <article class="card">
+            <p class="card-label">Verbrauch heute</p>
+            <p class="value" id="today-eur">-</p>
+            <p class="muted small" id="today-sub">-</p>
+          </article>
+          <article class="card">
+            <p class="card-label">&#216; pro Tag</p>
+            <p class="value" id="burn-eur">-</p>
+            <p class="muted small" id="burn-sub">-</p>
+          </article>
+          <article class="card">
+            <p class="card-label">Reicht noch</p>
+            <p class="value" id="days-left">-</p>
+            <p class="muted small" id="runs-out">-</p>
+          </article>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-label">Key-Limit</p>
+                <p class="muted small" id="key-label">-</p>
+              </div>
+              <span class="badge" id="key-badge">-</span>
+            </div>
+            <p class="value" id="limit-remaining">-</p>
+            <p class="muted small" id="limit-sub">-</p>
+            <div class="bar"><span id="limit-bar"></span></div>
+            <dl class="kv">
+              <div><dt>Heute</dt><dd id="k-today">-</dd></div>
+              <div><dt>Woche</dt><dd id="k-week">-</dd></div>
+              <div><dt>Monat</dt><dd id="k-month">-</dd></div>
+              <div><dt>Gesamt</dt><dd id="k-total">-</dd></div>
+            </dl>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-label">Tagesverbrauch</p>
+                <p class="muted small" id="chart-sub">-</p>
+              </div>
+              <div class="range" id="range">
+                <button type="button" data-days="14">14 T</button>
+                <button type="button" data-days="30" class="is-active">30 T</button>
+                <button type="button" data-days="90">90 T</button>
+              </div>
+            </div>
+            <div class="chart" id="chart"></div>
+            <div class="legend">
+              <span><i class="sw sw-bar"></i>Verbrauch pro Tag</span>
+              <span><i class="sw sw-line"></i>kumuliert</span>
+            </div>
+          </article>
+        </div>
+
+        <article class="card">
+          <p class="card-label">Details</p>
+          <dl class="kv kv-4">
+            <div><dt>Wechselkurs</dt><dd id="m-fx">-</dd></div>
+            <div><dt>Messpunkte</dt><dd id="m-snapshots">-</dd></div>
+            <div><dt>Verlauf seit</dt><dd id="m-since">-</dd></div>
+            <div><dt>Letzte Abfrage</dt><dd id="m-lastpoll">-</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="panel" id="panel-compare">
+        <article class="card">
+          <p class="card-label">Kostenrechner</p>
+          <div class="form">
+            <label>Input-Tokens<input type="number" id="w-prompt" value="2000" min="0" step="100" /></label>
+            <label>Output-Tokens<input type="number" id="w-completion" value="500" min="0" step="50" /></label>
+            <label>Anzahl Requests<input type="number" id="w-requests" value="100" min="0" step="10" /></label>
+            <label>Suche<input type="search" id="w-filter" placeholder="z. B. claude, gpt, gemini" /></label>
+          </div>
+          <p class="muted small" id="compare-sub">Lade Modellpreise ...</p>
+        </article>
+
+        <article class="card">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Modell</th>
+                  <th class="num">$/1M in</th>
+                  <th class="num">$/1M out</th>
+                  <th class="num">Kontext</th>
+                  <th class="num">Kosten Workload</th>
+                </tr>
+              </thead>
+              <tbody id="compare-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

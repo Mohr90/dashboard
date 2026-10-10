@@ -1,0 +1,19 @@
+[Unit]
+Description=OpenRouter Stats - Guthaben-, Verbrauchs- und Kosten-Dashboard
+Documentation=https://github.com/Mohr90/open-router-stats
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Dokumente/open-router-stats
+ExecStart=%h/.nvm/versions/node/v24.18.0/bin/node %h/Dokumente/open-router-stats/node_modules/.bin/tsx %h/Dokumente/open-router-stats/src/cli.ts serve
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=10
+# Der Collector schreibt nur in ./data/stats.db und liest .env.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
