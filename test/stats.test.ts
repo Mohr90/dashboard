@@ -93,6 +93,27 @@ test("dailySeries lehnt fallende Werte ab und fuellt Luecken mit 0", () => {
   );
 });
 
+test("dailySeries nutzt fuer heute den usage_daily-Wert ohne Baseline", () => {
+  // Frische Installation: die einzige Messung ist von heute, es gibt nichts zum Diffen.
+  const snapshots = [{ ...snap(Date.UTC(2026, 9, 10, 9, 0, 0), 7.0), usageDaily: 0.42 }];
+
+  const series = dailySeries(snapshots, 1, NOW);
+  assert.equal(series.length, 1);
+  assert.equal(series[0]?.date, "2026-10-10");
+  assert.equal(series[0]?.spend, 0.42);
+  assert.equal(series[0]?.cumulative, 0.42);
+});
+
+test("dailySeries behaelt das berechnete Delta, wenn usage_daily 0 ist", () => {
+  const snapshots = [
+    snap(Date.UTC(2026, 9, 9, 23, 0, 0), 5.0),
+    snap(Date.UTC(2026, 9, 10, 11, 0, 0), 5.25),
+  ];
+
+  const series = dailySeries(snapshots, 1, NOW);
+  assert.equal(series[0]?.spend, 0.25);
+});
+
 test("burnRate bevorzugt die lokale Historie ab drei Tagen mit Verbrauch", () => {
   const series = [point("2026-10-08", 1), point("2026-10-09", 2), point("2026-10-10", 3)];
   const result = burnRate({ usageDaily: 0.9, usageWeekly: 7, usageMonthly: 30, series, now: NOW });
