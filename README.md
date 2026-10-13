@@ -1,165 +1,90 @@
-# open-router-stats
+# OpenRouter Dashboard
 
-Live-Dashboard fuer dein **OpenRouter-Guthaben**: wie viel Geld noch uebrig ist,
-wie schnell du verbrauchst und wie lange es noch reicht - plus ein Preisvergleich
-ueber alle ~460 Modelle. Zusaetzlich ein **MCP-Server**, damit Cline/Claude den
-Kontostand direkt im Chat abfragen kann.
+A small, static dashboard for your [OpenRouter](https://openrouter.ai) account: how much balance is left, how fast you spend it, how long it lasts, what each model costs you, and a price-vs-intelligence comparison of all models.
 
-![Dashboard-Vorschau](docs/preview-dashboard.png)
+No server, no build step, no dependencies. Open `index.html` and it runs. Available in **English and German** (switch in the top bar).
+
+![Balance overview](docs/screenshot-overview-en.png)
+
+![Model comparison](docs/screenshot-compare-en.png)
+
+> The screenshots use demo data, not a real account.
 
 ## Features
 
-**Guthaben & Verbrauch**
-- Restguthaben in **EUR** und **USD** (USD->EUR-Kurs live von der EZB via Frankfurter)
-- Key-Ausgabenlimit inkl. Restbetrag und Reset-Zyklus
-- Verbrauch heute / Woche / Monat / gesamt
-- **Burn-Rate** (durchschnittlich EUR/Tag) und Prognose "reicht noch X Tage" inkl. Datum
-- Tagesverlauf-Chart (14 / 30 / 90 Tage): Balken = Verbrauch pro Tag, Linie = kumuliert
+**Balance and spend**
+- Spent today, with a comparison to yesterday at the same UTC time, plus a sparkline
+- Runway as a **range**: slow pace (average per month) to fast pace (average per week or last 3 days), with the dates the balance would run out
+- Balance left, total spent, average per day, spend this month
+- Key spending limit with remaining amount and reset cycle
+- Daily spend chart for 14, 30 or 90 days (bars = per day, line = cumulative)
 
-**Live**
-- Server-Sent-Events: der Browser aktualisiert sich bei jeder Messung automatisch
-- Button "Jetzt aktualisieren" fuer eine Messung auf Knopfdruck
-- Fallback auf Polling, falls SSE nicht verfuegbar ist
+**Spend by model**
+- Top models of the last 30 days with share and amount
+- The history is stored locally, so it grows beyond the 30 days the API returns
 
-**Modellvergleich**
-- Kostenrechner: Input-Tokens, Output-Tokens und Request-Anzahl eingeben
-- Ranking der guenstigsten Modelle fuer genau diesen Workload, in EUR und USD
+**Model comparison**
+- Price (blended 3:1 input:output, log scale) against Intelligence, Coding or Agentic score
+- Pareto frontier, a "sweet spot" pick, zoom and pan
 
-**MCP-Server** (`src/mcp.ts`) mit 6 Tools: `openrouter_balance`, `openrouter_usage`,
-`openrouter_burn_rate`, `openrouter_history`, `openrouter_model_prices`,
-`openrouter_estimate_cost`.
+**Design and behaviour**
+- Dark theme, View Transitions between tabs and ranges (Chrome, Edge), numbers count up on change
+- Refreshes every minute while the tab is visible
+- Respects `prefers-reduced-motion`
 
-## Wie der Verlauf entsteht
+## Getting started
 
-OpenRouter liefert ueber `GET /api/v1/credits` nur zwei Zahlen: gekaufte und
-verbrauchte Credits insgesamt. Die Analytics-API (`/api/v1/analytics/*`) mit
-Aufschluesselung nach Modell und Tag ist **Management-Keys** vorbehalten
-(`403: Only management keys can access analytics`).
+Option 1: open `index.html` in your browser.
 
-Deshalb schreibt das Dashboard in einem festen Intervall eigene Messpunkte in
-eine lokale SQLite-Datei (`data/stats.db`) und rekonstruiert daraus den
-Tagesverbrauch. Solange die Historie noch duenn ist, wird die Burn-Rate aus den
-von der API gelieferten Zeitraeumen (`usage_weekly`, `usage_monthly`) abgeleitet;
-die Quelle wird im Dashboard angezeigt (`history`, `api-week`, ...).
-
-> Der Verlauf waechst ab dem ersten Start. Nach ein paar Tagen wird `history`
-> zur bevorzugten Quelle und die Kurve genauer.
-
-## Voraussetzungen
-
-- Node.js **>= 22.5** (getestet mit v24) - nutzt `node:sqlite` und `fetch`
-- Ein **OpenRouter API-Key** (ein Inferenz-Key genuegt)
-- Optional: **Management-Key** unter https://openrouter.ai/settings/management-keys
-
-## Installation
+Option 2 (recommended, avoids some browser restrictions on local files):
 
 ```bash
-cd /home/steffen/Dokumente/open-router-stats
-npm install
-cp .env.example .env      # danach OPENROUTER_API_KEY eintragen
-npm start
+python3 -m http.server 8000
+# then open http://localhost:8000
 ```
 
-Danach im Browser oeffnen: **http://127.0.0.1:8787**
+Paste your OpenRouter API key into the field at the top. The key is used only for requests to `openrouter.ai`.
 
-## Befehle
+## API key and security
 
-| Befehl | Zweck |
-| --- | --- |
-| `npm start` | Dashboard starten (`serve`) |
-| `npm run dev` | Wie `start`, aber mit Auto-Reload bei Codeaenderungen |
-| `npm run snapshot` | Einmal messen, in die DB schreiben, JSON ausgeben |
-| `npm run summary` | Textbericht im Terminal |
-| `npm run models` | Die guenstigsten Modelle auflisten (`npm run models -- 30`) |
-| `npm run mcp` | MCP-Server ueber stdio starten |
-| `npm test` | Unit-Tests der Rechen- und Formatierlogik |
-| `npm run typecheck` | TypeScript-Pruefung ohne Build |
+- **Session by default.** The key is kept in `sessionStorage`. It is gone when you close the tab.
+- **"Remember on this device"** also writes the key to `localStorage`. It stays there in **plain text** until you remove it. Any script running on the same origin can read it, so only use this on your own machine.
+- **Network.** A Content-Security-Policy meta tag allows scripts and styles from this page only, and network calls only to `openrouter.ai`.
+- **Escaping.** Model names from the API are escaped before they go into the page.
+- **Clickjacking.** A page framed by another site stays blank. This is a JavaScript guard only. For a hosted deployment, add a `frame-ancestors` response header.
+- **Management keys.** Per-model spend comes from the activity endpoint, which needs a **management key**. A management key can do more than read usage, for example manage API keys. Only use one where you trust the browser and the place the page is served from. A regular inference key gets a 403, and the dashboard shows a hint instead of data.
 
-## Konfiguration (`.env`)
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
 
-| Variable | Standard | Bedeutung |
+## Data sources
+
+| Endpoint | Used for | Key |
 | --- | --- | --- |
-| `OPENROUTER_API_KEY` | - | Pflicht. Key fuer `/key`, `/credits`, `/models` |
-| `OPENROUTER_MANAGEMENT_KEY` | leer | Optional, schaltet die Analytics-API frei |
-| `HOST` / `PORT` | `127.0.0.1` / `8787` | Bind-Adresse des Dashboards |
-| `POLL_SECONDS` | `60` | Messintervall (Minimum 15) |
-| `HISTORY_DAYS` | `90` | Angezeigter und behaltener Verlauf |
-| `EUR_PER_USD_FALLBACK` | `0.89` | Kurs, falls die FX-API nicht erreichbar ist |
-| `FX_REFRESH_HOURS` | `12` | Wie oft der Wechselkurs neu geladen wird |
-| `DB_PATH` | `data/stats.db` | SQLite-Datei mit der Historie |
+| `GET /api/v1/credits` | balance, total spend | API key |
+| `GET /api/v1/key` | today, week, month, limit, key name | API key |
+| `GET /api/v1/activity` | spend per model per day | management key |
+| `GET /api/v1/models` | prices and benchmark scores | none |
 
-## HTTP-API
+Benchmark scores come from Artificial Analysis, as included in the OpenRouter model data.
 
-| Route | Beschreibung |
-| --- | --- |
-| `GET /api/summary?days=30` | Alle Kennzahlen inkl. Verlauf |
-| `GET /api/history?days=30` | Nur die Tagesreihe |
-| `GET /api/models?q=&limit=` | Modellkatalog mit Preisen pro 1M Tokens |
-| `GET /api/compare?promptTokens=&completionTokens=&requests=` | Kostenranking |
-| `GET /api/refresh` | Sofort eine neue Messung + Summary |
-| `GET /api/stream` | SSE-Strom der Summaries |
-| `GET /api/health` | Status, Version, Uptime |
+**Please verify:** the field names of `/api/v1/activity` (`date`, `model`, `usage`) were taken from the OpenRouter documentation and have not yet been checked against a real response. If the per-model section stays empty with a management key, open the browser console and compare the response with what `app.js` expects.
 
-## MCP in Cline/Claude einbinden
+Spend history (balance snapshots and per-model totals) is kept in `localStorage` in your browser. Nothing is sent anywhere else.
 
-In `~/.cline/data/settings/cline_mcp_settings.json` ergaenzen:
+## Files
 
-```json
-{
-  "mcpServers": {
-    "openrouter-stats": {
-      "transport": {
-        "type": "stdio",
-        "command": "/home/steffen/Dokumente/open-router-stats/node_modules/.bin/tsx",
-        "args": ["/home/steffen/Dokumente/open-router-stats/src/mcp.ts"]
-      }
-    }
-  }
-}
-```
+- `index.html` - structure, translation markers, CSP
+- `styles.css` - design and animations
+- `app.js` - data loading, storage, calculations, charts, translations
+- `logo.svg` - logo, also used as favicon
+- `docs/` - screenshots
 
-Der Key wird automatisch aus der `.env` im Projektordner geladen.
+## Known limitations
 
-## Dauerbetrieb (systemd)
+- Single file for all logic (`app.js`), no automated tests. Tested manually in Chrome with demo data.
+- Browsers without View Transitions (for example older Firefox versions) switch tabs and ranges instantly. Everything else works.
+- Benchmark scores and prices depend on what OpenRouter's model catalogue provides.
 
-```bash
-mkdir -p ~/.config/systemd/user
-cp systemd/open-router-stats.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now open-router-stats
-journalctl --user -u open-router-stats -f
-```
+## License
 
-## Sicherheit
-
-- Das Dashboard bindet standardmaessig nur an `127.0.0.1` und hat **keine
-  Authentifizierung** - nicht ohne Reverse-Proxy mit Auth nach aussen oeffnen.
-- `.env` und `data/` stehen in `.gitignore` und werden nicht eingecheckt.
-
-## Projektstruktur
-
-```
-src/config.ts       Konfiguration + .env-Laden
-src/openrouter.ts   OpenRouter-API-Client (key, credits, models, analytics)
-src/fx.ts           USD->EUR-Kurs inkl. Cache und Fallback
-src/stats.ts        Reine Rechen- und Formatierlogik (getestet)
-src/store.ts        SQLite-Historie (node:sqlite)
-src/summary.ts      Baut das Summary-Objekt fuer UI, CLI und MCP
-src/collector.ts    Polling, Persistenz, Events
-src/server.ts       HTTP-Server, REST-API, SSE, Static-Serving
-src/cli.ts          Einstiegspunkt (serve/snapshot/summary/models)
-src/mcp.ts          MCP-Server mit 6 Tools
-public/             Dashboard (Vanilla JS, eigenes SVG-Chart, keine CDN-Abhaengigkeit)
-```
-
-## Roadmap
-
-- [ ] Management-Key-Modus: `/api/v1/analytics/query` fuer echten Verbrauch pro
-      Modell und Tag (dann ohne eigene Historie)
-- [ ] Top-Modelle nach Ausgaben im Dashboard
-- [ ] Budget-Warnungen (z. B. Benachrichtigung unter 5 EUR)
-- [ ] Export der Historie als CSV
-
-## Lizenz
-
-MIT
+[MIT](LICENSE)

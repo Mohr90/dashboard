@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <!-- Only own scripts and styles, and network calls only to OpenRouter. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://openrouter.ai; img-src 'self' data:; base-uri 'none'; form-action 'none'"
+    />
+    <title>OpenRouter Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="logo.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="banner" class="banner" hidden></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <img class="logo" src="logo.svg" alt="" width="40" height="40" />
+        <div>
+          <h1>OpenRouter Dashboard</h1>
+          <p class="muted small" id="subtitle" data-i18n="subtitle.nokey">No API key set.</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span class="pill" id="live-pill"><span class="dot"></span><span id="live-text">offline</span></span>
+        <label class="lang-switch">
+          <span data-i18n="lang.label">Language</span>
+          <select id="lang-select" aria-label="Language">
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+          </select>
+        </label>
+        <button class="btn" id="refresh-btn" type="button" data-i18n="refresh">Refresh</button>
+      </div>
+    </header>
+
+    <section class="keybar" id="keybar">
+      <label for="api-key" data-i18n="key.label">OpenRouter API key</label>
+      <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-v1-..." />
+      <button class="btn btn-primary" id="save-key" type="button" data-i18n="key.save">Save</button>
+      <button class="btn" id="clear-key" type="button" data-i18n="key.clear">Remove</button>
+      <label class="remember" for="remember-key">
+        <input id="remember-key" type="checkbox" />
+        <span data-i18n="key.remember">remember on this device</span>
+      </label>
+      <p class="muted small keybar-note" id="key-note"></p>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab is-active" data-tab="overview" type="button" data-i18n="tab.overview">Balance</button>
+      <button class="tab" data-tab="compare" type="button" data-i18n="tab.compare">Model comparison</button>
+    </nav>
+
+    <main>
+      <!-- Balance -->
+      <section class="panel is-active" id="panel-overview">
+        <div class="hero-grid">
+          <article class="card hero today">
+            <div class="card-head">
+              <div>
+                <p class="card-label" data-i18n="today.label">Spent today</p>
+                <p class="muted small" data-i18n="today.sub">since 00:00 UTC</p>
+              </div>
+              <span class="delta" id="today-delta">-</span>
+            </div>
+            <p class="value xl" id="today">-</p>
+            <div class="spark" id="spark"></div>
+            <p class="muted small" id="today-foot">-</p>
+          </article>
+
+          <article class="card runway">
+            <div class="runway-body">
+              <div class="ring-wrap">
+                <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#34d399" />
+                      <stop offset="100%" stop-color="#38bdf8" />
+                    </linearGradient>
+                  </defs>
+                  <circle class="ring-track" cx="60" cy="60" r="50" pathLength="100" />
+                  <circle class="ring-fg" id="ring-fg" cx="60" cy="60" r="50" pathLength="100" />
+                </svg>
+                <div class="ring-center">
+                  <span class="ring-num" id="days-left">-</span>
+                  <small class="muted" id="days-unit">days</small>
+                </div>
+              </div>
+              <div class="runway-text">
+                <p class="card-label" data-i18n="runway.label">Runway</p>
+                <p class="runway-sub" id="runs-out">-</p>
+                <p class="muted small" data-i18n="runway.hint">Range: slow (Ø per month) to fast (Ø per week / last 3 days)</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <p class="card-label" data-i18n="balance.label">Balance left</p>
+            <p class="value" id="remaining">-</p>
+            <p class="muted small" id="remaining-sub">-</p>
+            <div class="bar"><span id="balance-bar"></span></div>
+            <p class="muted small" id="balance-foot">-</p>
+          </article>
+        </div>
+
+        <div class="cards">
+          <article class="card">
+            <p class="card-label" data-i18n="used.label">Spent total</p>
+            <p class="value" id="used-total">-</p>
+            <p class="muted small" id="used-sub">-</p>
+          </article>
+          <article class="card">
+            <p class="card-label" data-i18n="burn.label">Ø per day</p>
+            <p class="value" id="burn">-</p>
+            <p class="muted small" id="burn-sub">-</p>
+          </article>
+          <article class="card">
+            <p class="card-label" data-i18n="month.label">This month</p>
+            <p class="value" id="month">-</p>
+            <p class="muted small" data-i18n="month.source">per OpenRouter</p>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="card-label" data-i18n="models.title">Spend by model</p>
+              <p class="muted small" id="models-sub">-</p>
+            </div>
+          </div>
+          <div class="model-list" id="models"></div>
+        </article>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-label" data-i18n="key.card">Key</p>
+                <p class="muted small" id="key-label">-</p>
+              </div>
+              <span class="badge" id="key-badge">-</span>
+            </div>
+            <p class="value" id="limit-remaining">-</p>
+            <p class="muted small" id="limit-sub">-</p>
+            <dl class="kv">
+              <div><dt data-i18n="kv.today">Today</dt><dd id="k-today">-</dd></div>
+              <div><dt data-i18n="kv.week">Week</dt><dd id="k-week">-</dd></div>
+              <div><dt data-i18n="kv.month">Month</dt><dd id="k-month">-</dd></div>
+              <div><dt data-i18n="kv.total">Total</dt><dd id="k-total">-</dd></div>
+            </dl>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <p class="card-label" data-i18n="chart.label">Daily spend</p>
+                <p class="muted small" id="chart-sub">-</p>
+              </div>
+              <div class="range" id="range">
+                <button type="button" data-days="14">14d</button>
+                <button type="button" data-days="30" class="is-active">30d</button>
+                <button type="button" data-days="90">90d</button>
+              </div>
+            </div>
+            <div class="chart" id="chart"></div>
+            <div class="legend">
+              <span><i class="sw sw-bar"></i><span data-i18n="chart.bar">Spend per day</span></span>
+              <span><i class="sw sw-line"></i><span data-i18n="chart.line">cumulative</span></span>
+            </div>
+            <p class="muted small chart-note" data-i18n="chart.note">
+              The history builds up in this browser: every refresh stores a data point, so it grows over time.
+            </p>
+          </article>
+        </div>
+
+        <article class="card">
+          <p class="card-label" data-i18n="details.label">Details</p>
+          <dl class="kv kv-4">
+            <div><dt data-i18n="details.points">Data points</dt><dd id="m-snapshots">-</dd></div>
+            <div><dt data-i18n="details.since">History since</dt><dd id="m-since">-</dd></div>
+            <div><dt data-i18n="details.last">Last fetch</dt><dd id="m-lastpoll">-</dd></div>
+            <div><dt data-i18n="details.currency">All prices in</dt><dd data-i18n="details.currency.value">USD ($)</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <!-- Model comparison -->
+      <section class="panel" id="panel-compare">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="card-label" data-i18n="cmp.label">Intelligence vs. price</p>
+              <p class="muted small" id="compare-sub">Loading model data ...</p>
+            </div>
+            <div class="head-controls">
+              <button class="btn btn-small" id="zoom-reset" type="button" hidden data-i18n="cmp.reset">Reset zoom</button>
+              <div class="range" id="metric">
+                <button type="button" data-metric="intelligence" class="is-active" data-i18n="metric.intelligence">Intelligence</button>
+                <button type="button" data-metric="coding" data-i18n="metric.coding">Coding</button>
+                <button type="button" data-metric="agentic" data-i18n="metric.agentic">Agentic</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="scatter-wrap">
+            <div class="scatter" id="scatter"></div>
+            <div class="tooltip" id="scatter-tip" hidden></div>
+          </div>
+          <p class="muted small chart-note" data-i18n="cmp.hint">
+            Scroll to zoom at the cursor, drag to pan, double-click to reset.
+          </p>
+
+          <div class="frontier-strip" id="frontier-strip"></div>
+          <div class="legend legend-scatter" id="scatter-legend"></div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="foot muted small" data-i18n="footer">
+      Data straight from openrouter.ai. Prices per 1M tokens in USD, blended 3:1 (input:output). Benchmark scores from Artificial Analysis. Batch variants are hidden.
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

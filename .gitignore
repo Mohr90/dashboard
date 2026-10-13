@@ -1,20 +1,11 @@
-# dependencies
-node_modules/
-
-# local database & runtime data
-data/
-
-# secrets / local config
+# secrets - an API key must never end up in the repo
+*.key
 .env
 .env.*
-!.env.example
 
-# logs & misc
-*.log
-npm-debug.log*
+# OS / editor noise
 .DS_Store
-dist/
-
-# editor
+Thumbs.db
 .vscode/
 .idea/
+*.log
