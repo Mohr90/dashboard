@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
-    <!-- Only own scripts and styles, and network calls only to OpenRouter. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://openrouter.ai; img-src 'self' data:; base-uri 'none'; form-action 'none'"
@@ -26,13 +25,10 @@
       </div>
       <div class="topbar-actions">
         <span class="pill" id="live-pill"><span class="dot"></span><span id="live-text">offline</span></span>
-        <label class="lang-switch">
-          <span data-i18n="lang.label">Language</span>
-          <select id="lang-select" aria-label="Language">
-            <option value="en">English</option>
-            <option value="de">Deutsch</option>
-          </select>
-        </label>
+        <div class="lang-switch" id="lang-switch" role="group" aria-label="Language">
+          <button type="button" data-lang="de">DE</button>
+          <button type="button" data-lang="en">EN</button>
+        </div>
         <button class="btn" id="refresh-btn" type="button" data-i18n="refresh">Refresh</button>
       </div>
     </header>
@@ -55,7 +51,6 @@
     </nav>
 
     <main>
-      <!-- Balance -->
       <section class="panel is-active" id="panel-overview">
         <div class="hero-grid">
           <article class="card hero today">
@@ -187,7 +182,6 @@
         </article>
       </section>
 
-      <!-- Model comparison -->
       <section class="panel" id="panel-compare">
         <article class="card">
           <div class="card-head">

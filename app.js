@@ -1,10 +1,6 @@
 "use strict";
 
-// Clickjacking guard: a page framed by another site stays blank.
 if (window.top !== window.self) document.documentElement.hidden = true;
-
-// OpenRouter Dashboard runs entirely in the browser: data comes straight from
-// openrouter.ai, history is kept in localStorage. All money values are USD.
 
 const API = "https://openrouter.ai/api/v1";
 const STORE_SNAP = "orstats.snapshots";
@@ -14,7 +10,7 @@ const STORE_LANG = "orstats.lang";
 const SNAPSHOT_LIMIT = 20000;
 const SNAPSHOT_MAX_AGE_DAYS = 400;
 const MODEL_HISTORY_DAYS = 400;
-// Upper price bound of the sweet-spot box, USD per 1M tokens.
+
 const PRICE_CAP = 1;
 
 const $ = (id) => document.getElementById(id);
@@ -31,7 +27,7 @@ const state = {
   modelHistory: {},
   activityError: null,
   timer: null,
-  // null = fit the data, otherwise an explicit axis range set by zooming.
+
   view: null,
   autoView: null,
   plot: null,
@@ -56,7 +52,6 @@ const I18N = {
     "error.status": "Fehler",
     refresh: "Aktualisieren",
     "refresh.busy": "Lade ...",
-    "lang.label": "Sprache",
     "key.label": "OpenRouter API-Key",
     "key.save": "Speichern",
     "key.clear": "Entfernen",
@@ -165,7 +160,6 @@ const I18N = {
     "error.status": "Error",
     refresh: "Refresh",
     "refresh.busy": "Loading ...",
-    "lang.label": "Language",
     "key.label": "OpenRouter API key",
     "key.save": "Save",
     "key.clear": "Remove",
@@ -266,7 +260,6 @@ const I18N = {
   },
 };
 
-/** Translates a key and fills {placeholders}. Falls back to English, then to the key. */
 function t(key, vars = {}) {
   const text = I18N[state.lang]?.[key] ?? I18N.en[key] ?? key;
   return text.replace(/\{(\w+)\}/g, (_, name) => (name in vars ? String(vars[name]) : `{${name}}`));
@@ -274,38 +267,35 @@ function t(key, vars = {}) {
 function locale() {
   return LOCALES[state.lang] ?? LOCALES.en;
 }
-
-/** Applies the current language to every element marked with data-i18n. */
 function applyStaticText() {
   document.documentElement.lang = state.lang;
   document.title = t("title");
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     el.textContent = t(el.dataset.i18n);
   });
-  $("lang-select").value = state.lang;
+  document.querySelectorAll("#lang-switch button").forEach((b) =>
+    b.classList.toggle("is-active", b.dataset.lang === state.lang),
+  );
 }
-
 function detectLanguage() {
   try {
     const saved = localStorage.getItem(STORE_LANG);
     if (saved === "de" || saved === "en") return saved;
   } catch {
-    /* storage blocked - fall through to the browser language */
+
   }
   return (navigator.language || "en").toLowerCase().startsWith("de") ? "de" : "en";
 }
-
 function setLanguage(lang) {
   state.lang = lang;
   try {
     localStorage.setItem(STORE_LANG, lang);
   } catch {
-    /* not persisted - fine for this visit */
+
   }
   applyStaticText();
   renderAll();
 }
-
 function nf(value, digits) {
   return (Number.isFinite(value) ? value : 0).toLocaleString(locale(), {
     minimumFractionDigits: digits,
@@ -319,7 +309,6 @@ function usd(value, digits) {
 function pct(value) {
   return `${nf(value, 1)} %`;
 }
-/** Prices span eight orders of magnitude, so the precision follows the value. */
 function priceLabel(value) {
   if (!(value > 0)) return t("scatter.free");
   if (value >= 1) return usd(value, 2);
@@ -335,7 +324,6 @@ function setText(id, value) {
   const el = $(id);
   if (el) el.textContent = value;
 }
-/** Escapes text that goes into innerHTML. Model names come from the API. */
 function esc(value) {
   return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
@@ -349,7 +337,6 @@ function dateTime(ms) {
   if (!ms) return "-";
   return new Date(ms).toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
-
 function showBanner(key, vars = {}, isError = false) {
   state.banner = key ? { key, vars, isError } : null;
   renderBanner();
@@ -361,7 +348,7 @@ function renderBanner() {
     el.hidden = true;
     return;
   }
-  // Hint keys are resolved here so they follow the language switch too.
+
   const vars = { ...banner.vars };
   if (vars.hintKey) vars.hint = t(vars.hintKey);
   el.textContent = t(banner.key, vars);
@@ -369,7 +356,6 @@ function renderBanner() {
   el.hidden = false;
 }
 
-// Snapshots and model history use localStorage; if it is blocked, keep them in memory.
 const memoryStore = new Map();
 function readStore(key, fallback) {
   try {
@@ -388,10 +374,6 @@ function writeStore(key, value) {
   }
 }
 
-/**
- * The API key lives in sessionStorage (gone when the tab closes). Only with
- * "remember on this device" it is also written to localStorage.
- */
 function safeStore(name) {
   try {
     const store = globalThis[name];
@@ -411,7 +393,7 @@ function loadKey() {
       const value = store?.getItem(STORE_KEY);
       if (value) return value;
     } catch {
-      /* unreadable store - try the next one */
+
     }
   }
   return "";
@@ -430,13 +412,12 @@ function saveKey(value, persist) {
       if (on && value) store.setItem(STORE_KEY, value);
       else store.removeItem(STORE_KEY);
     } catch {
-      /* storage full or blocked - the key lives in memory for this page */
+
     }
   };
   put(SESSION, true);
   put(LOCAL, persist);
 }
-
 function loadSnapshots() {
   try {
     const raw = JSON.parse(readStore(STORE_SNAP, "[]"));
@@ -454,16 +435,12 @@ function saveSnapshots(list) {
 function recordSnapshot(usage) {
   const list = state.snapshots;
   const last = list[list.length - 1];
-  // One point per minute is plenty; the usage figure only moves on spend.
+
   if (last && Date.now() - last.t < 60000 && last.usage === usage) return;
   list.push({ t: Date.now(), usage });
   state.snapshots = saveSnapshots(list);
 }
 
-/**
- * Daily spend from the snapshot log: each day's spend is the difference between
- * that day's last known total usage and the previous day's.
- */
 function dailySeries(currentUsage, days) {
   const lastOfDay = new Map();
   for (const snap of state.snapshots) {
@@ -474,7 +451,6 @@ function dailySeries(currentUsage, days) {
   if (Number.isFinite(currentUsage)) {
     lastOfDay.set(utcDay(Date.now()), { t: Date.now(), usage: currentUsage });
   }
-
   const knownDays = [...lastOfDay.keys()].sort();
   const spendByDay = new Map();
   knownDays.forEach((day, index) => {
@@ -493,7 +469,6 @@ function dailySeries(currentUsage, days) {
   }
   return out;
 }
-
 function loadModelHistory() {
   try {
     const raw = JSON.parse(readStore(STORE_MODELS, "{}"));
@@ -503,11 +478,6 @@ function loadModelHistory() {
   }
 }
 
-/**
- * Activity rows are per day and per model endpoint. Days returned by the API
- * replace what is stored for that day; older days stay, so the history grows
- * beyond the 30 days the API itself returns.
- */
 function mergeActivity(rows) {
   const byDay = {};
   for (const row of rows) {
@@ -524,7 +494,6 @@ function mergeActivity(rows) {
   writeStore(STORE_MODELS, JSON.stringify(store));
   state.modelHistory = store;
 }
-
 async function apiGet(path, withKey) {
   const headers = { Accept: "application/json", "X-Title": "openrouter-dashboard" };
   if (withKey) {
@@ -547,15 +516,12 @@ async function apiGet(path, withKey) {
   }
   return body;
 }
-
 function parsePrice(value) {
   const n = Number.parseFloat(value);
   return Number.isFinite(n) ? n : 0;
 }
-
 const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
-/** Runs a DOM update inside a View Transition where the browser supports it. */
 function withTransition(update) {
   if (!document.startViewTransition || reduceMotion) {
     update();
@@ -563,14 +529,12 @@ function withTransition(update) {
   }
   document.startViewTransition(update);
 }
-
 function flash(el) {
   el.classList.remove("flash");
   void el.offsetWidth;
   el.classList.add("flash");
 }
 
-/** Counts a number up (or down) to its new value. An unchanged value stays still. */
 function animateValue(id, to, format) {
   const el = $(id);
   if (!el) return;
@@ -578,7 +542,7 @@ function animateValue(id, to, format) {
   const from = hadValue ? el._num : 0;
   el._num = to;
   cancelAnimationFrame(el._raf);
-  // Glow only on a real change at a later refresh, not on the first load.
+
   if (hadValue && from !== to) flash(el);
   if (from === to || reduceMotion) {
     el.textContent = format(to);
@@ -594,7 +558,6 @@ function animateValue(id, to, format) {
   el._raf = requestAnimationFrame(tick);
 }
 
-/** Sets a fixed text without counting. */
 function setStatic(id, text) {
   const el = $(id);
   if (!el) return;
@@ -603,16 +566,11 @@ function setStatic(id, text) {
   el.textContent = text;
 }
 
-/** The ring shows the share of the purchased balance that is left (0-100). */
 function setRing(percent) {
   const ring = $("ring-fg");
   if (ring) ring.style.strokeDashoffset = String(100 - Math.max(0, Math.min(100, percent)));
 }
 
-/**
- * Today against yesterday, fairly: yesterday is scaled to the same UTC time of
- * day, otherwise the comparison in the morning would always look like -80 %.
- */
 function renderDelta(today, yesterday) {
   const el = $("today-delta");
   const dayFraction = (Date.now() % 86400000) / 86400000;
@@ -628,7 +586,6 @@ function renderDelta(today, yesterday) {
   el.className = `delta ${change > 5 ? "up" : change < -5 ? "down" : ""}`.trim();
 }
 
-/** Small area chart of the last days; the line draws itself in. */
 function renderSpark(points) {
   const host = $("spark");
   if (!points.length || points.every((p) => p.spend === 0)) {
@@ -648,7 +605,6 @@ function renderSpark(points) {
     `<path class="spark-area" d="${area}"/>` +
     `<path class="spark-line" pathLength="1" d="${line}"/></svg>`;
 }
-
 function renderOverview() {
   const credits = state.credits;
   const info = state.keyInfo;
@@ -660,7 +616,6 @@ function renderOverview() {
     renderSpark([]);
     return;
   }
-
   const total = credits.total_credits;
   const remaining = Math.max(0, total - credits.total_usage);
   const usedPercent = total > 0 ? Math.min(100, (credits.total_usage / total) * 100) : 0;
@@ -688,7 +643,6 @@ function renderOverview() {
   setText("today-foot", t("today.foot", { yesterday: usd(yesterday), week: usd(weekly) }));
   renderSpark(week);
 
-  // Burn rate: prefer the local history once it covers a few days with spend.
   const active = series.filter((point) => point.spend > 0);
   let burnPerDay;
   let source;
@@ -708,8 +662,6 @@ function renderOverview() {
   animateValue("burn", burnPerDay, (v) => t("burn.perday", { amount: usd(v) }));
   setText("burn-sub", t("burn.basis", { source }));
 
-  // Runway as a range. Slow = Ø per month, fast = the higher of Ø per week and
-  // the last three days. Two honest ends instead of one guess.
   const last3Avg = series.slice(-3).reduce((sum, point) => sum + point.spend, 0) / 3;
   const slowBurn = monthly > 0 ? monthly / 30 : burnPerDay;
   const fastBurn = Math.max(weekly / 7, last3Avg, slowBurn);
@@ -732,7 +684,6 @@ function renderOverview() {
     setText("days-unit", remaining > 0 ? t("unit.unlimited") : t("unit.empty"));
     setText("runs-out", burnPerDay > 0 ? t("runway.used") : t("runway.noburn"));
   }
-
   setText("key-label", info?.label ? t("key.named", { label: info.label }) : t("key.unnamed"));
   const badge = $("key-badge");
   const isMgmt = Boolean(info?.is_management_key);
@@ -748,7 +699,6 @@ function renderOverview() {
     setStatic("limit-remaining", t("limit.none"));
     setText("limit-sub", t("limit.nolimit"));
   }
-
   setText("k-today", usd(daily));
   setText("k-week", usd(weekly));
   setText("k-month", usd(monthly));
@@ -762,14 +712,13 @@ function renderOverview() {
   setText("chart-sub", t("chart.sum", { amount: usd(spent), n: state.days }));
   renderChart(series);
 }
-
 function renderChart(points) {
   const host = $("chart");
   if (!points.length) {
     host.innerHTML = `<p class="muted small">${esc(t("chart.empty"))}</p>`;
     return;
   }
-  // Animate only when the data changed; the page refreshes every minute.
+
   const sig = points.map((p) => `${p.spend.toFixed(5)}|${p.cumulative.toFixed(5)}`).join(",");
   host.classList.toggle("no-anim", sig === state.chartSig);
   state.chartSig = sig;
@@ -815,7 +764,6 @@ function renderChart(points) {
     );
   }
 
-  // Bars grow one after another; the delay is per column.
   points.forEach((point, index) => {
     const h = (point.spend / maxSpend) * ih;
     const x = pad.left + index * step + (step - barW) / 2;
@@ -831,7 +779,6 @@ function renderChart(points) {
   parts.push(`<circle class="end-ping" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="6"/>`);
   parts.push(`<circle class="end-dot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3"/>`);
 
-  // X labels: every n-th day, but never the one right before the last label.
   const every = Math.max(1, Math.ceil(points.length / 9));
   points.forEach((point, index) => {
     const isLast = index === points.length - 1;
@@ -847,7 +794,6 @@ function renderChart(points) {
   host.innerHTML = parts.join("");
 }
 
-/** Top models of the last 30 days from the local history; the rest is summed up. */
 function renderModels() {
   const host = $("models");
   if (!state.apiKey) {
@@ -860,7 +806,6 @@ function renderModels() {
     host.innerHTML = `<p class="muted small">${esc(t("models.hint.mgmt"))}</p>`;
     return;
   }
-
   const cutoff = utcDay(Date.now() - 29 * 86400000);
   const totals = new Map();
   for (const [day, models] of Object.entries(state.modelHistory)) {
@@ -875,7 +820,6 @@ function renderModels() {
     host.innerHTML = `<p class="muted small">${esc(t("models.empty"))}</p>`;
     return;
   }
-
   const sum = rows.reduce((acc, [, spend]) => acc + spend, 0);
   const items = rows.slice(0, 8).map(([model, spend]) => ({
     label: model.split("/").pop(),
@@ -886,7 +830,6 @@ function renderModels() {
   if (restSpend > 0) {
     items.push({ label: t("models.more", { n: rows.length - 8 }), spend: restSpend, color: "#5b6078" });
   }
-
   const max = items[0].spend;
   const signature = items.map((item) => `${item.label}:${item.spend.toFixed(4)}`).join("|");
   host.classList.toggle("no-anim", signature === state.modelsSig);
@@ -904,7 +847,6 @@ function renderModels() {
   setText("models-sub", t("models.total", { amount: usd(sum), n: rows.length }));
 }
 
-/** Fetches the per-model activity. A regular key gets a 403, shown as a hint. */
 async function loadActivity() {
   try {
     const body = await apiGet("/activity", true);
@@ -914,7 +856,6 @@ async function loadActivity() {
     state.activityError = error.status === 403 || error.status === 401 ? "needs-management" : error.message;
   }
 }
-
 const METRIC_KEYS = { intelligence: "metric.intelligence", coding: "metric.coding", agentic: "metric.agentic" };
 
 const PROVIDER_COLORS = {
@@ -966,7 +907,6 @@ function metricLabel() {
   return t(METRIC_KEYS[state.metric]);
 }
 
-/** Rows from the catalogue with the blended 3:1 price per 1M tokens. */
 function buildRows() {
   const metric = state.metric;
   return (state.models || [])
@@ -990,7 +930,6 @@ function buildRows() {
     })
     .filter((row) => Number.isFinite(row[metric]));
 }
-
 function paretoFrontier(rows) {
   const sorted = [...rows].sort((a, b) => a.price - b.price || b[state.metric] - a[state.metric]);
   const frontier = [];
@@ -1005,17 +944,11 @@ function paretoFrontier(rows) {
   return frontier;
 }
 
-/**
- * The single best pick inside the sweet-spot box: the highest scoring model under
- * the price cap. Free models are excluded: they top any value ranking on paper,
- * but the free tier is rate limited, so they are not a real answer.
- */
 function sweetSpot(frontier) {
   const inRange = frontier.filter((row) => row.price > 0 && row.price <= PRICE_CAP);
   if (inRange.length === 0) return null;
   return inRange.reduce((best, row) => (row[state.metric] > best[state.metric] ? row : best));
 }
-
 function renderCompare() {
   const rows = buildRows();
   const metric = state.metric;
@@ -1026,11 +959,9 @@ function renderCompare() {
     $("scatter").innerHTML = `<p class="muted small">${esc(t("cmp.nodata"))}</p>`;
     return;
   }
-
   const frontier = paretoFrontier(rows);
   const spot = sweetSpot(frontier);
 
-  // Frontier as a compact chip strip, prices up front.
   const strip = $("frontier-strip");
   strip.textContent = "";
   [...frontier].reverse().forEach((row) => {
@@ -1055,36 +986,30 @@ function renderCompare() {
   renderLegend(rows);
   updateZoomControls();
 }
-
 function redrawScatter() {
   if (!state.scatterArgs) return;
   const { rows, frontier, spot } = state.scatterArgs;
   renderScatter(rows, frontier, spot);
   updateZoomControls();
 }
-
 function updateZoomControls() {
   const button = $("zoom-reset");
   if (button) button.hidden = !state.view;
 }
-
 function resetZoom() {
   state.view = null;
   redrawScatter();
 }
 
-/** Pointer position in SVG user units, independent of how the SVG is scaled. */
 function toSvgPoint(event, geo) {
   const rect = $("scatter").getBoundingClientRect();
   const k = rect.width ? geo.width / rect.width : 1;
   return { x: (event.clientX - rect.left) * k, y: (event.clientY - rect.top) * k };
 }
-
 function insidePlot(p, geo) {
   return p.x >= geo.xLeft && p.x <= geo.xLeft + geo.plotW && p.y >= geo.pad.top && p.y <= geo.pad.top + geo.plotH;
 }
 
-/** Wheel zooms towards the cursor, dragging pans. Attached once, not per render. */
 function initScatterZoom() {
   const host = $("scatter");
   let drag = null;
@@ -1135,7 +1060,7 @@ function initScatterZoom() {
     try {
       host.setPointerCapture(event.pointerId);
     } catch {
-      /* capture is a nicety, not a requirement */
+
     }
     event.preventDefault();
   });
@@ -1161,7 +1086,7 @@ function initScatterZoom() {
     try {
       host.releasePointerCapture(drag.id);
     } catch {
-      /* already released */
+
     }
     drag = null;
     host.classList.remove("is-panning");
@@ -1176,7 +1101,6 @@ function initScatterZoom() {
   $("zoom-reset")?.addEventListener("click", resetZoom);
 }
 
-/** Axis ranges that fit the data: the view before any zoom. */
 function autoView(rows, paid, metric) {
   const prices = paid.map((row) => row.price);
   const lx0 = prices.length ? Math.floor(Math.log10(Math.min(...prices))) : -5;
@@ -1187,7 +1111,6 @@ function autoView(rows, paid, metric) {
   return { lx0, lx1: Math.max(lx0 + 1, lx1), y0, y1: Math.max(y0 + 5, y1) };
 }
 
-/** Price ticks on a log axis: more mantissas once the range gets narrow. */
 function priceTicks(lx0, lx1) {
   const span = lx1 - lx0;
   const mantissas = span > 3 ? [1] : span > 1.3 ? [1, 3] : [1, 1.5, 2, 3, 5, 7];
@@ -1201,7 +1124,6 @@ function priceTicks(lx0, lx1) {
   return out.sort((a, b) => a - b);
 }
 
-/** Keeps a zoomed view within sane bounds and stops it collapsing to a point. */
 function clampView(view) {
   const minX = 0.4;
   const minY = 4;
@@ -1234,7 +1156,6 @@ function clampView(view) {
   }
   return { lx0, lx1, y0, y1 };
 }
-
 function renderScatter(rows, frontier, spot) {
   const host = $("scatter");
   const tip = $("scatter-tip");
@@ -1268,7 +1189,6 @@ function renderScatter(rows, frontier, spot) {
   const xTicks = priceTicks(view.lx0, view.lx1).map((value) => ({ value, x: xScale(value) }));
   const xFor = (row) => (row.price <= 0 ? freeOffsets.get(row.id) ?? freeX : xScale(row.price));
 
-  // Geometry the zoom handlers need after the render.
   state.plot = { width, height, pad, xLeft, plotW, plotH };
 
   const frontierSet = new Set(frontier);
@@ -1279,7 +1199,7 @@ function renderScatter(rows, frontier, spot) {
       '<stop class="frontier-grad-a" offset="0%"/><stop class="frontier-grad-b" offset="100%"/></linearGradient>' +
       '<linearGradient id="sweetGradient" x1="0" y1="0" x2="0" y2="1">' +
       '<stop class="sweet-grad-a" offset="0%"/><stop class="sweet-grad-b" offset="100%"/></linearGradient>' +
-      // Zoomed content is clipped to the plot area, so it never spills over the axes.
+
       `<clipPath id="plotClip"><rect x="${pad.left}" y="${pad.top}" width="${plotW + freeBand}" height="${plotH}"/></clipPath>` +
       "</defs>",
   );
@@ -1292,7 +1212,6 @@ function renderScatter(rows, frontier, spot) {
       `<text class="axis" x="${pad.left - 10}" y="${(y + 4).toFixed(1)}" text-anchor="end">${nf(value, 0)}</text>`,
     );
   }
-
   if (freeBand) {
     parts.push(`<rect class="free-band" x="${pad.left}" y="${pad.top}" width="${freeBand}" height="${plotH}" rx="6"/>`);
     parts.push(
@@ -1302,7 +1221,6 @@ function renderScatter(rows, frontier, spot) {
       `<text class="axis free-label" x="${freeX}" y="${pad.top + 13}" text-anchor="middle">${esc(t("scatter.free"))}</text>`,
     );
   }
-
   xTicks.forEach((tick) => {
     parts.push(
       `<line class="grid grid-v" x1="${tick.x.toFixed(1)}" y1="${pad.top}" x2="${tick.x.toFixed(1)}" y2="${pad.top + plotH}"/>`,
@@ -1312,7 +1230,6 @@ function renderScatter(rows, frontier, spot) {
     );
   });
 
-  // Everything below is clipped to the plot area.
   parts.push('<g clip-path="url(#plotClip)">');
 
   if (frontier.length > 1) {
@@ -1324,9 +1241,6 @@ function renderScatter(rows, frontier, spot) {
     parts.push(`<path class="frontier" d="${path.join(" ")}"/>`);
   }
 
-  // Sweet-spot box: the upper-left corner, below PRICE_CAP and close to the best
-  // score available in that range. A fixed box, because the message is "stay in
-  // this corner"; the expensive end of the frontier is nobody's idea of value.
   const inRange = frontier.filter((row) => row.price <= PRICE_CAP);
   if (inRange.length > 0) {
     const ceiling = Math.max(...inRange.map((row) => row[metric]));
@@ -1348,7 +1262,6 @@ function renderScatter(rows, frontier, spot) {
       );
     }
   }
-
   const ordered = [...rows].sort((a, b) => Number(frontierSet.has(a)) - Number(frontierSet.has(b)));
   ordered.forEach((row) => {
     const onFrontier = frontierSet.has(row);
@@ -1360,8 +1273,6 @@ function renderScatter(rows, frontier, spot) {
     );
   });
 
-  // Labels: the frontier first, then the smartest models. Labels that do not fit
-  // are dropped rather than clipped mid-word.
   const priority = [
     ...[...frontier].sort((a, b) => b[metric] - a[metric]),
     ...[...rows]
@@ -1439,7 +1350,6 @@ function renderScatter(rows, frontier, spot) {
     });
   });
 }
-
 function renderLegend(rows) {
   const counts = new Map();
   rows.forEach((row) => counts.set(row.provider, (counts.get(row.provider) ?? 0) + 1));
@@ -1452,7 +1362,6 @@ function renderLegend(rows) {
   });
   $("scatter-legend").innerHTML = parts.join("");
 }
-
 function setLive(isLive, statusKey = null) {
   state.live = { on: isLive, key: statusKey };
   renderLive();
@@ -1461,7 +1370,6 @@ function renderLive() {
   $("live-pill").classList.toggle("is-live", state.live.on);
   setText("live-text", t(state.live.key ?? (state.live.on ? "live" : "offline")));
 }
-
 function renderSubtitle() {
   const text =
     state.credits && state.lastUpdate
@@ -1469,12 +1377,9 @@ function renderSubtitle() {
       : t("subtitle.nokey");
   setText("subtitle", text);
 }
-
 function renderKeyNote() {
   setText("key-note", keyIsPersisted() ? t("key.note.persist") : t("key.note.session"));
 }
-
-/** Re-renders everything that contains translated text or numbers. */
 function renderAll() {
   renderLive();
   renderBanner();
@@ -1485,12 +1390,10 @@ function renderAll() {
   renderModels();
   if (!$("refresh-btn").disabled) $("refresh-btn").textContent = t("refresh");
 }
-
 async function loadModels() {
   const body = await apiGet("/models", false);
   state.models = Array.isArray(body?.data) ? body.data : [];
 }
-
 async function refresh() {
   const button = $("refresh-btn");
   button.disabled = true;
@@ -1523,7 +1426,6 @@ async function refresh() {
     button.textContent = t("refresh");
   }
 }
-
 function initTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -1539,7 +1441,6 @@ function initTabs() {
     });
   });
 }
-
 function initKeybar() {
   const input = $("api-key");
   const persist = $("remember-key");
@@ -1588,7 +1489,6 @@ function initKeybar() {
     showBanner("key.removed");
   });
 }
-
 function initRange() {
   document.querySelectorAll("#range button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1602,7 +1502,6 @@ function initRange() {
     });
   });
 }
-
 function initMetric() {
   document.querySelectorAll("#metric button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1611,20 +1510,20 @@ function initMetric() {
         document.querySelectorAll("#metric button").forEach((other) => other.classList.remove("is-active"));
         button.classList.add("is-active");
         state.metric = button.dataset.metric || "intelligence";
-        // A new metric means a new y range, so a zoomed view no longer fits.
+
         state.view = null;
         renderCompare();
       });
     });
   });
 }
-
 function initLanguage() {
-  const select = $("lang-select");
-  select.addEventListener("change", () => setLanguage(select.value));
+  document.querySelectorAll("#lang-switch button").forEach((button) =>
+    button.addEventListener("click", () => {
+      if (button.dataset.lang !== state.lang) setLanguage(button.dataset.lang);
+    }),
+  );
 }
-
-/** Re-renders the charts when the window size changes; debounced. */
 function initResize() {
   let resizeTimer = null;
   window.addEventListener("resize", () => {
@@ -1635,7 +1534,6 @@ function initResize() {
     }, 180);
   });
 }
-
 function boot() {
   state.lang = detectLanguage();
   state.apiKey = loadKey();
@@ -1654,7 +1552,7 @@ function boot() {
   renderSubtitle();
   renderKeyNote();
   void refresh();
-  // Keep the numbers fresh while the page is open, but not in background tabs.
+
   state.timer = setInterval(() => {
     if (!document.hidden) void refresh();
   }, 60000);
@@ -1662,5 +1560,4 @@ function boot() {
     if (!document.hidden) void refresh();
   });
 }
-
 void boot();
